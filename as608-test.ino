@@ -41,6 +41,8 @@ bool lastTouchPin = HIGH;
 unsigned long lastTouchChangeMs = 0;
 const unsigned long DEBOUNCE_MS = 50;
 
+bool fingerPresent = false;
+
 char statusMsg[128] = "Initializing...";
 char enrollMsg[128] = "";
 
@@ -459,10 +461,21 @@ void scanForMatch() {
   lastScanMs = millis();
 
   uint8_t code = getImage();
-  if (code == 0x02) return;  // No finger
+  if (code == 0x02) {
+    if (fingerPresent) {
+      Serial.println("Finger removed");
+      fingerPresent = false;
+    }
+    return;
+  }
   if (code != 0x00) {
     Serial.print("[SCAN] Error: 0x"); Serial.println(code, HEX);
-    return;  // Error
+    return;
+  }
+
+  if (!fingerPresent) {
+    Serial.println("Finger detected");
+    fingerPresent = true;
   }
 
   if (image2Tz(0x01) != 0x00) {
@@ -480,8 +493,11 @@ void scanForMatch() {
     users[id].lastSeen = (millis() - bootMs) / 1000;
     snprintf(statusMsg, sizeof(statusMsg), "MATCH: Slot %u (score %u)", id + 1, score);
     Serial.println(statusMsg);
+    Serial.print("UNIQUE_CODE: ");
+    Serial.println(users[id].code);
   } else if (sr == 0x09) {
     snprintf(statusMsg, sizeof(statusMsg), "No match");
+    Serial.println("No match found");
   }
 }
 
@@ -633,6 +649,26 @@ void setup() {
 void loop() {
   server.handleClient();
 
+  // Check for serial commands
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd.startsWith("enroll ")) {
+      int slot = cmd.substring(7).toInt();
+      if (slot >= 1 && slot <= MAX_USERS) {
+        Serial.print("Starting enrollment for slot ");
+        Serial.println(slot);
+        enrollUser(slot - 1);
+      } else {
+        Serial.println("Invalid slot. Use: enroll 1-162");
+      }
+    } else if (cmd == "help") {
+      Serial.println("Commands:");
+      Serial.println("  enroll <slot>  - Enroll fingerprint (1-162)");
+      Serial.println("  help           - Show this help");
+    }
+  }
+
   // Touch button with debounce
   bool currentPin = digitalRead(TOUCH_PIN);
   if (currentPin != lastTouchPin) {
@@ -648,7 +684,7 @@ void loop() {
     }
   }
 
-  if (touchActive) {
+  if (touchActive && !enrollmentActive) {
     scanForMatch();
   }
 
