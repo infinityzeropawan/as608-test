@@ -547,8 +547,8 @@ void handleRoot() {
   html += "<p><button onclick='clearAll()'>CLEAR ALL</button></p>";
   html += "<script>";
   html += "function enroll(id) { fetch('/api/enroll?id=' + id).then(r => r.text()).then(t => { document.getElementById('enroll').innerText = t; setTimeout(() => location.reload(), 3000); }); }";
-  html += "function erase(id) { fetch('/api/erase?id=' + id).then(r => location.reload()); }";
-  html += "function clearAll() { if(confirm('Erase ALL?')) fetch('/api/clear').then(r => location.reload()); }";
+  html += "function erase(id) { fetch('/api/erase?id=' + id).then(r => setTimeout(() => location.reload(), 100)); }";
+  html += "function clearAll() { if(confirm('Erase ALL?')) fetch('/api/clear').then(r => setTimeout(() => location.reload(), 100)); }";
   html += "setInterval(() => fetch('/api/status').then(r => r.text()).then(t => document.getElementById('status').innerText = t), 1000);";
   html += "setInterval(() => fetch('/api/enrollmsg').then(r => r.text()).then(t => document.getElementById('enroll').innerText = t), 1000);";
   html += "</script></body></html>";
@@ -571,6 +571,7 @@ void handleErase() {
     deleteModel(id + 1);
     users[id].enrolled = false;
     users[id].scans = 0;
+    users[id].lastSeen = 0;
     snprintf(enrollMsg, sizeof(enrollMsg), "Slot %u erased", id + 1);
   }
   server.send(200, "text/plain", "OK");
